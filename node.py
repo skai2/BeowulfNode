@@ -14,7 +14,7 @@ class Node():
 # ------------------------------------------------------------------------------
     def __init__(self, debug):
         self.DEBUG = debug
-        self.ID = str(random.randint(111111, 999999))
+        self.ID = str(random.randint(11111111, 99999999))
         self.DISCOVERY_HOST = '<broadcast>'
         self.DISCOVERY_PORT = 12345
         self.NODE_HOST = Node.getIP()
@@ -60,7 +60,11 @@ class Node():
                     message, addr = s.recvfrom(1024)
                     Thread(target=self.handle_message, args=(message, addr,)).start()
                 except socket.timeout as e:
-                    self.send_message(0, 'HeyBrah-'+self.NODE_HOST+'-'+str(self.NODE_PORT)+'-'+self.ID)
+                    self.send_message(
+                        id = 0,
+                        message = 'HeyBrah-'+self.NODE_HOST+'-'+str(self.NODE_PORT)+'-'+self.ID,
+                        discovery = True
+                    )
                     for peer in self.peerlist.copy().keys():
                         tuple = self.peerlist[peer]
                         if time.time() - tuple[2] > 10:
@@ -78,11 +82,14 @@ class Node():
                 s.bind((self.NODE_HOST, self.NODE_PORT))
             except Exception as e:
                 print(e)
+            s.settimeout(1)
             listening.set()
             while listening.is_set():
                 try:
                     message, addr = s.recvfrom(1024)
                     Thread(target=self.handle_message, args=(message, addr,)).start()
+                except socket.timeout as e:
+                    pass
                 except Exception as e:
                     print(e)
             s.close()
@@ -90,6 +97,7 @@ class Node():
     def handle_message(self, message, addr):
         message = message.decode('utf-8')
         split = message.split('-')
+        message = '-'.join(split[1:])
         if split[0] == 'HeyBrah':
             if not (split[1] == self.NODE_HOST and int(split[2]) == self.NODE_PORT):
                 self.peerlist[split[3]] = (split[1], int(split[2]), time.time())
@@ -97,7 +105,7 @@ class Node():
             return ''
         else:
             if self.DEBUG:
-                print("from %s %s" % (self.reversepeer[addr], message))
+                print("from %s %s" % (split[0], message))
             self.messages.put(message)
 
 # SENDERS ----------------------------------------------------------------------
@@ -108,7 +116,7 @@ class Node():
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
 
-    def send_message(self, id, message):
+    def send_message(self, id, message, discovery=False):
         if id == 0:
             ip = self.DISCOVERY_HOST
             port = self.DISCOVERY_PORT
@@ -125,6 +133,8 @@ class Node():
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.bind((self.NODE_HOST, self.NODE_PORT))
+                if not discovery:
+                    message = self.ID + '-' + message
                 s.sendto(message.encode('utf-8'), (ip, port))
         except Exception as e:
             print(e)
