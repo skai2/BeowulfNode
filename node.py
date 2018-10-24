@@ -76,23 +76,28 @@ class Node():
             s.close()
 
     def listener(self, listening):
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
                 s.bind((self.NODE_HOST, self.NODE_PORT))
             except Exception as e:
                 print(e)
+            s.listen(5)
             s.settimeout(1)
             listening.set()
             while listening.is_set():
                 try:
-                    message, addr = s.recvfrom(1024)
-                    Thread(target=self.handle_message, args=(message, addr,)).start()
+                    client, addr = s.accept()
+                    Thread(target=self.handle_connection, args=(client, addr,)).start()
                 except socket.timeout as e:
                     pass
                 except Exception as e:
                     print(e)
             s.close()
+
+    def handle_connection(self, client, addr):
+        message = client.recv(1024)
+        self.handle_message(message, addr)
+        client.close()
 
     def handle_message(self, message, addr):
         message = message.decode('utf-8')
@@ -129,13 +134,17 @@ class Node():
                     print('---- Invalid peer ->', e)
                 return
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind((self.NODE_HOST, self.NODE_PORT))
-                if not discovery:
+            if discovery:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                    s.bind((self.NODE_HOST, self.NODE_PORT))
+                    s.sendto(message.encode('utf-8'), (ip, port))
+            else:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect((ip, port))
                     message = self.ID + '-' + message
-                s.sendto(message.encode('utf-8'), (ip, port))
+                    s.sendall(message.encode('utf-8'))
         except Exception as e:
             print(e)
 
