@@ -12,9 +12,10 @@ import psutil
 
 
 
-class Node():
-# MAIN -------------------------------------------------------------------------
+# NODE -------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
+
+class Node():
     def __init__(self, debug):
         self.DEBUG = debug
         self.ID = str(random.randint(11111111, 99999999))
@@ -31,7 +32,7 @@ class Node():
         Thread(target=self.discoverer, args=(self.discovering,)).start()
         Thread(target=self.listener, args=(self.listening,)).start()
         if self.DEBUG:
-            print('-<<[(Node %s)-(%s, %5d)]>>-' % \
+            print('\n-<<[(Node %s)-(%s, %5d)]>>-' % \
                 (self.ID, self.NODE_HOST, self.NODE_PORT))
 
     def kill(self):
@@ -46,7 +47,37 @@ class Node():
             print('done')
         return self.peerlist
 
-# LISTENERS ----------------------------------------------------------------------
+
+
+# NET INFO ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
+    def getIP():
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+
+    def getBroadcastIP():
+        if os.name == 'nt':
+            return Node.getIP()
+        else:
+            return '<broadcast>'
+
+    def getBroadcastPort(port):
+        if os.name == 'nt':
+            port += Node.getNodeCount()
+        return port
+
+    def getNodeCount():
+        count = 0
+        for proc in psutil.process_iter():
+            if proc.name() == "python.exe":
+                count += 1
+        return count
+
+
+
+# DISCOVERER -------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
     def discoverer(self, discovering):
@@ -80,6 +111,11 @@ class Node():
                     print(e)
             s.close()
 
+
+
+# LISTENER ---------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
     def listener(self, listening):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
@@ -99,6 +135,11 @@ class Node():
                     print(e)
             s.close()
 
+
+
+# MESSAGE HANDLERS -------------------------------------------------------------
+# ------------------------------------------------------------------------------
+
     def handle_connection(self, client, addr):
         message = client.recv(1024)
         self.handle_message(message, addr)
@@ -117,32 +158,6 @@ class Node():
             if self.DEBUG:
                 print("from %s %s" % (split[0], message))
             self.messages.put(message)
-
-# SENDERS ----------------------------------------------------------------------
-# ------------------------------------------------------------------------------
-
-    def getIP():
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.connect(("8.8.8.8", 80))
-            return s.getsockname()[0]
-
-    def getBroadcastIP():
-        if os.name == 'nt':
-            return Node.getIP()
-        else:
-            return '<broadcast>'
-
-    def getBroadcastPort(port):
-        if os.name == 'nt':
-            port += Node.getNodeCount()
-        return port
-
-    def getNodeCount():
-        count = 0
-        for proc in psutil.process_iter():
-            if proc.name() == "python.exe":
-                count += 1
-        return count
 
     def send_message(self, id, message, discovery=False):
         if id == 0:
