@@ -14,7 +14,7 @@ import psutil
 # Attributes:
 #       Node.messages         -> A buffer (of type queue) of received messages.
 # Methods:
-#       Node.send_message(id) -> Sends a message to node by id.
+#       Node.send_message(id, message) -> Sends a message to node by id.
 #       Node.peers()          -> Returns a list of connected nodes' ids.
 #       Node.kill()           -> Terminates node.
 
@@ -47,8 +47,8 @@ class Node():
         self.__discovering.clear()
         self.__listening.clear()
 
-    def peers(self):
-        if self.__DEBUG:
+    def peers(self, print=False):
+        if print:
             for peer in self.__peerlist.keys():
                 print("peer %s-(%s, %5d)" % \
                     (peer, self.__peerlist[peer][0], self.__peerlist[peer][1]))
@@ -168,7 +168,7 @@ class Node():
         else:
             if self.__DEBUG:
                 print("from %s %s" % (split[0], message))
-            self.messages.put(message)
+            self.messages.put({'sender':split[0], 'contents':message})
 
     def send_message(self, id, message, discovery=False):
         if id == 0:
@@ -218,7 +218,7 @@ class NodeCMD(Cmd):
 
     def do_list(self, args):
         '''Lists all peers.'''
-        self.node.peers()
+        self.node.peers(print=True)
 
     def do_send(self, args):
         """Sends a message."""
