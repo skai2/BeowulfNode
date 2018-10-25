@@ -22,6 +22,8 @@ class Node():
         self.BASE_PORT = 12345
         self.DISCOVERY_HOST = Node.getBroadcastIP()
         self.DISCOVERY_PORT = Node.getBroadcastPort(self.BASE_PORT)
+        self.DISCOVERY_PING = 1
+        self.DISCONNECT_TIMEOUT = 10
         self.NODE_HOST = Node.getIP()
         self.NODE_PORT = random.randint(1025, 65535+1)
         self.messages = Queue()
@@ -86,13 +88,13 @@ class Node():
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.bind((self.DISCOVERY_HOST, self.DISCOVERY_PORT))
-                s.settimeout(1)
             except Exception as e:
                 print(e)
                 sys.exit()
             discovering.set()
             while discovering.is_set():
                 try:
+                    s.settimeout(self.DISCOVERY_PING)
                     message, addr = s.recvfrom(1024)
                     Thread(target=self.handle_message, args=(message, addr,)).start()
                 except socket.timeout as e:
@@ -103,10 +105,11 @@ class Node():
                     )
                     for peer in self.peerlist.copy().keys():
                         tuple = self.peerlist[peer]
-                        if time.time() - tuple[2] > 10:
+                        if time.time() - tuple[2] > self.DISCONNECT_TIMEOUT:
                             del self.peerlist[peer]
                             del self.reversepeer[(tuple[0], tuple[1])]
-                    time.sleep(random.random())
+                            if self.DEBUG:
+                                print('node', peer, 'disconnected')
                 except Exception as e:
                     print(e)
             s.close()
@@ -151,6 +154,8 @@ class Node():
         message = '-'.join(split[1:])
         if split[0] == 'HeyBrah':
             if not (split[1] == self.NODE_HOST and int(split[2]) == self.NODE_PORT):
+                if self.DEBUG and split[3] not in self.peerlist:
+                    print('node', split[3], 'connected')
                 self.peerlist[split[3]] = (split[1], int(split[2]), time.time())
                 self.reversepeer[(split[1], int(split[2]))] = split[3]
             return ''
@@ -188,7 +193,7 @@ class Node():
                     message = self.ID + '-' + message
                     s.sendall(message.encode('utf-8'))
         except Exception as e:
-            print(e)
+            print('---- Send to ->', id, 'failed:', e)
 
 
 
