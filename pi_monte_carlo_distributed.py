@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import time
 from cmd import Cmd
 from node import Node
 from threading import Thread, Event
@@ -40,6 +41,7 @@ class BNode(Cmd):
         self.distributed_monte_carlo(int(args[0]))
 
     def distributed_monte_carlo(self, points):
+        start = time.time()
         count = len(self.peers)
         if count < 1:
             print('---- No peers available')
@@ -60,7 +62,9 @@ class BNode(Cmd):
         # inside / total = pi / 4
         pi = (float(points_inside) / points) * 4
         # It works!
-        print('calc Calculated Pi =', pi)
+        end = time.time()
+        cost = round(end - start, 3)
+        print('calc Calculated Pi =', pi, 'Time =', end-start, 'secs')
 
     def __helper(self):
         self.helping.set()
