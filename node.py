@@ -10,7 +10,12 @@ import os
 import sys
 import psutil
 
-
+# P2P Node class usage info
+# Attributes:
+#       Node.messages         -> A buffer (of type queue) of received messages.
+# Methods:
+#       Node.send_message(id) -> Sends a message to node by id.
+#       Node.peers()          -> Returns a list of connected nodes' ids.
 
 # NODE -------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
