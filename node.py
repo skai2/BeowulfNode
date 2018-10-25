@@ -35,6 +35,7 @@ class Node():
         self.__NODE_PORT = random.randint(1025, 65535+1)
         self.__peerlist = {}
         self.__reversepeer = {}
+        self.__checked = Event()
         self.__discovering = Event()
         self.__listening = Event()
         Thread(target=self.__discoverer).start()
@@ -48,6 +49,14 @@ class Node():
         self.__listening.clear()
 
     def peers(self, print=False):
+        peers = self.__peerlist.copy()
+        for peer in peers.keys():
+            self.send_message(
+                id = peer,
+                message = 'PingBrah-'+self.__NODE_HOST+'-'+str(self.__NODE_PORT)+'-'+self.__ID,
+                ping = True
+            )
+            self.__checked.wait()
         if print:
             for peer in self.__peerlist.keys():
                 print("peer %s-(%s, %5d)" % \
@@ -158,6 +167,8 @@ class Node():
         message = message.decode('utf-8')
         split = message.split('-')
         message = '-'.join(split[1:])
+        if split[0] == 'PingBrah':
+            return
         if split[0] == 'HeyBrah':
             if not (split[1] == self.__NODE_HOST and int(split[2]) == self.__NODE_PORT):
                 if self.__DEBUG and split[3] not in self.__peerlist:
@@ -170,7 +181,7 @@ class Node():
                 print("from %s %s" % (split[0], message))
             self.messages.put({'sender':split[0], 'contents':message})
 
-    def send_message(self, id, message, discovery=False):
+    def send_message(self, id, message, discovery=False, ping=False):
         if id == 0:
             ip = self.__DISCOVERY_HOST
             port = self.__DISCOVERY_PORT
@@ -195,11 +206,18 @@ class Node():
                         s.sendto(message.encode('utf-8'), (ip, iport))
             else:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    if not ping:
+                        message = self.__ID + '-' + message
                     s.connect((ip, port))
-                    message = self.__ID + '-' + message
                     s.sendall(message.encode('utf-8'))
         except Exception as e:
-            print('---- Send to ->', id, 'failed:', e)
+            tuple = self.__peerlist[id]
+            del self.__peerlist[id]
+            del self.__reversepeer[(tuple[0], tuple[1])]
+            if self.__DEBUG:
+                print('---- Send to', id, 'failed', e)
+        finally:
+            self.__checked.set()
 
 
 
