@@ -30,7 +30,7 @@ class Node():
         self.__DISCOVERY_HOST = Node.__getBroadcastIP()
         self.__DISCOVERY_PORT = Node.__getBroadcastPort(self.__BASE_PORT)
         self.__DISCOVERY_PING = 1
-        self.__DISCONNECT_TIMEOUT = 10
+        self.__DISCONNECT_TIMEOUT = 60
         self.__NODE_HOST = Node.__getIP()
         self.__NODE_PORT = random.randint(1025, 65535+1)
         self.__peerlist = {}
@@ -100,7 +100,7 @@ class Node():
             self.__discovering.set()
             while self.__discovering.is_set():
                 try:
-                    s.settimeout(self.__DISCOVERY_PING)
+                    s.settimeout(self.__DISCOVERY_PING + random.random())
                     message, addr = s.recvfrom(1024)
                     Thread(target=self.__handle_message, args=(message, addr,)).start()
                 except socket.timeout as e:
