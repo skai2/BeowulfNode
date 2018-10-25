@@ -5,6 +5,7 @@ from node import Node
 from threading import Thread, Event
 import random as r
 import math as m
+import queue
 
 
 
@@ -40,6 +41,9 @@ class BNode(Cmd):
 
     def distributed_monte_carlo(self, points):
         count = len(self.peers)
+        if count < 1:
+            print('---- No peers available')
+            return
         for peer in self.peers:
             self.node.send_message(peer, 'calculate-' + str(m.ceil(points/count)))
         received = 0
@@ -48,14 +52,15 @@ class BNode(Cmd):
             if not self.node.messages.empty():
                 message = self.node.messages.get()
                 split = message['contents'].split('-')
-                print(split[0])
                 if split[0] == 'results':
                     points_inside += int(split[1])
                     received += 1
+                else:
+                    self.node.messages.put(message)
         # inside / total = pi / 4
         pi = (float(points_inside) / points) * 4
         # It works!
-        print('calc Pi=', pi)
+        print('calc Calculated Pi =', pi)
 
     def __helper(self):
         self.helping.set()
@@ -75,6 +80,8 @@ class BNode(Cmd):
                             points_inside += 1
                     print('send results')
                     self.node.send_message(message['sender'], 'results-'+str(points_inside))
+                else:
+                    self.node.messages.put(message)
 
 
 
