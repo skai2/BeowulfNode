@@ -6,6 +6,9 @@ from queue import Queue
 from cmd import Cmd
 import random
 import time
+import os
+import sys
+import psutil
 
 
 
@@ -15,8 +18,9 @@ class Node():
     def __init__(self, debug):
         self.DEBUG = debug
         self.ID = str(random.randint(11111111, 99999999))
-        self.DISCOVERY_HOST = '<broadcast>'
-        self.DISCOVERY_PORT = 12345
+        self.BASE_PORT = 12345
+        self.DISCOVERY_HOST = Node.getBroadcastIP()
+        self.DISCOVERY_PORT = Node.getBroadcastPort(self.BASE_PORT)
         self.NODE_HOST = Node.getIP()
         self.NODE_PORT = random.randint(1025, 65535+1)
         self.messages = Queue()
@@ -47,13 +51,14 @@ class Node():
 
     def discoverer(self, discovering):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.bind((self.DISCOVERY_HOST, self.DISCOVERY_PORT))
+                s.settimeout(1)
             except Exception as e:
                 print(e)
-            s.settimeout(1)
+                sys.exit()
             discovering.set()
             while discovering.is_set():
                 try:
@@ -79,10 +84,10 @@ class Node():
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
                 s.bind((self.NODE_HOST, self.NODE_PORT))
+                s.listen(5)
+                s.settimeout(1)
             except Exception as e:
                 print(e)
-            s.listen(5)
-            s.settimeout(1)
             listening.set()
             while listening.is_set():
                 try:
@@ -121,6 +126,24 @@ class Node():
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
 
+    def getBroadcastIP():
+        if os.name == 'nt':
+            return Node.getIP()
+        else:
+            return '<broadcast>'
+
+    def getBroadcastPort(port):
+        if os.name == 'nt':
+            port += Node.getNodeCount()
+        return port
+
+    def getNodeCount():
+        count = 0
+        for proc in psutil.process_iter():
+            if proc.name() == "python.exe":
+                count += 1
+        return count
+
     def send_message(self, id, message, discovery=False):
         if id == 0:
             ip = self.DISCOVERY_HOST
@@ -139,7 +162,11 @@ class Node():
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                     s.bind((self.NODE_HOST, self.NODE_PORT))
-                    s.sendto(message.encode('utf-8'), (ip, port))
+                    prange = 1
+                    if os.name == 'nt':
+                        prange += Node.getNodeCount()
+                    for iport in range(self.BASE_PORT, self.BASE_PORT + prange):
+                        s.sendto(message.encode('utf-8'), (ip, iport))
             else:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((ip, port))
