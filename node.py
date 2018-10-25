@@ -40,7 +40,7 @@ class Node():
         Thread(target=self.__discoverer).start()
         Thread(target=self.__listener).start()
         if self.__DEBUG:
-            print('\n-<<[(Node %s)-(%s, %5d)]>>-' % \
+            print('\n-<<[ (Node %s)-(%s, %5d) ]>>-' % \
                 (self.__ID, self.__NODE_HOST, self.__NODE_PORT))
 
     def kill(self):
