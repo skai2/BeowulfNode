@@ -16,66 +16,67 @@ import psutil
 # Methods:
 #       Node.send_message(id) -> Sends a message to node by id.
 #       Node.peers()          -> Returns a list of connected nodes' ids.
+#       Node.kill()           -> Terminates node.
 
 # NODE -------------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
 class Node():
     def __init__(self, debug):
-        self.DEBUG = debug
-        self.ID = str(random.randint(11111111, 99999999))
-        self.BASE_PORT = 12345
-        self.DISCOVERY_HOST = Node.getBroadcastIP()
-        self.DISCOVERY_PORT = Node.getBroadcastPort(self.BASE_PORT)
-        self.DISCOVERY_PING = 1
-        self.DISCONNECT_TIMEOUT = 10
-        self.NODE_HOST = Node.getIP()
-        self.NODE_PORT = random.randint(1025, 65535+1)
         self.messages = Queue()
-        self.peerlist = {}
-        self.reversepeer = {}
-        self.discovering = Event()
-        self.listening = Event()
-        Thread(target=self.discoverer, args=(self.discovering,)).start()
-        Thread(target=self.listener, args=(self.listening,)).start()
-        if self.DEBUG:
+        self.__DEBUG = debug
+        self.__ID = str(random.randint(11111111, 99999999))
+        self.__BASE_PORT = 12345
+        self.__DISCOVERY_HOST = Node.__getBroadcastIP()
+        self.__DISCOVERY_PORT = Node.__getBroadcastPort(self.__BASE_PORT)
+        self.__DISCOVERY_PING = 1
+        self.__DISCONNECT_TIMEOUT = 10
+        self.__NODE_HOST = Node.__getIP()
+        self.__NODE_PORT = random.randint(1025, 65535+1)
+        self.__peerlist = {}
+        self.__reversepeer = {}
+        self.__discovering = Event()
+        self.__listening = Event()
+        Thread(target=self.__discoverer).start()
+        Thread(target=self.__listener).start()
+        if self.__DEBUG:
             print('\n-<<[(Node %s)-(%s, %5d)]>>-' % \
-                (self.ID, self.NODE_HOST, self.NODE_PORT))
+                (self.__ID, self.__NODE_HOST, self.__NODE_PORT))
 
     def kill(self):
-        self.discovering.clear()
-        self.listening.clear()
+        self.__discovering.clear()
+        self.__listening.clear()
 
     def peers(self):
-        if self.DEBUG:
-            for peer in self.peerlist.keys():
+        if self.__DEBUG:
+            for peer in self.__peerlist.keys():
                 print("peer %s-(%s, %5d)" % \
-                    (peer, self.peerlist[peer][0], self.peerlist[peer][1]))
+                    (peer, self.__peerlist[peer][0], self.__peerlist[peer][1]))
             print('done')
-        return self.peerlist
+        return self.__peerlist
 
 
 
 # NET INFO ---------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
-    def getIP():
+    def __getIP():
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
 
-    def getBroadcastIP():
+    def __getBroadcastIP():
         if os.name == 'nt':
-            return Node.getIP()
+            return Node.__getIP()
         else:
             return '<broadcast>'
 
-    def getBroadcastPort(port):
+    def __getBroadcastPort(port):
         if os.name == 'nt':
-            port += Node.getNodeCount()
+            port += Node.__getNodeCount()
         return port
 
-    def getNodeCount():
+    def __getNodeCount():
         count = 0
         for proc in psutil.process_iter():
             if proc.name() == "python.exe":
@@ -87,33 +88,33 @@ class Node():
 # DISCOVERER -------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
-    def discoverer(self, discovering):
+    def __discoverer(self):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             try:
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                s.bind((self.DISCOVERY_HOST, self.DISCOVERY_PORT))
+                s.bind((self.__DISCOVERY_HOST, self.__DISCOVERY_PORT))
             except Exception as e:
                 print(e)
                 sys.exit()
-            discovering.set()
-            while discovering.is_set():
+            self.__discovering.set()
+            while self.__discovering.is_set():
                 try:
-                    s.settimeout(self.DISCOVERY_PING)
+                    s.settimeout(self.__DISCOVERY_PING)
                     message, addr = s.recvfrom(1024)
-                    Thread(target=self.handle_message, args=(message, addr,)).start()
+                    Thread(target=self.__handle_message, args=(message, addr,)).start()
                 except socket.timeout as e:
                     self.send_message(
                         id = 0,
-                        message = 'HeyBrah-'+self.NODE_HOST+'-'+str(self.NODE_PORT)+'-'+self.ID,
+                        message = 'HeyBrah-'+self.__NODE_HOST+'-'+str(self.__NODE_PORT)+'-'+self.__ID,
                         discovery = True
                     )
-                    for peer in self.peerlist.copy().keys():
-                        tuple = self.peerlist[peer]
-                        if time.time() - tuple[2] > self.DISCONNECT_TIMEOUT:
-                            del self.peerlist[peer]
-                            del self.reversepeer[(tuple[0], tuple[1])]
-                            if self.DEBUG:
+                    for peer in self.__peerlist.copy().keys():
+                        tuple = self.__peerlist[peer]
+                        if time.time() - tuple[2] > self.__DISCONNECT_TIMEOUT:
+                            del self.__peerlist[peer]
+                            del self.__reversepeer[(tuple[0], tuple[1])]
+                            if self.__DEBUG:
                                 print('node', peer, 'disconnected')
                 except Exception as e:
                     print(e)
@@ -124,19 +125,19 @@ class Node():
 # LISTENER ---------------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
-    def listener(self, listening):
+    def __listener(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
-                s.bind((self.NODE_HOST, self.NODE_PORT))
-                s.listen(5)
+                s.bind((self.__NODE_HOST, self.__NODE_PORT))
+                s.listen(0)
                 s.settimeout(1)
             except Exception as e:
                 print(e)
-            listening.set()
-            while listening.is_set():
+            self.__listening.set()
+            while self.__listening.is_set():
                 try:
                     client, addr = s.accept()
-                    Thread(target=self.handle_connection, args=(client, addr,)).start()
+                    Thread(target=self.__handle_connection, args=(client, addr,)).start()
                 except socket.timeout as e:
                     pass
                 except Exception as e:
@@ -148,37 +149,37 @@ class Node():
 # MESSAGE HANDLERS -------------------------------------------------------------
 # ------------------------------------------------------------------------------
 
-    def handle_connection(self, client, addr):
+    def __handle_connection(self, client, addr):
         message = client.recv(1024)
-        self.handle_message(message, addr)
+        self.__handle_message(message, addr)
         client.close()
 
-    def handle_message(self, message, addr):
+    def __handle_message(self, message, addr):
         message = message.decode('utf-8')
         split = message.split('-')
         message = '-'.join(split[1:])
         if split[0] == 'HeyBrah':
-            if not (split[1] == self.NODE_HOST and int(split[2]) == self.NODE_PORT):
-                if self.DEBUG and split[3] not in self.peerlist:
+            if not (split[1] == self.__NODE_HOST and int(split[2]) == self.__NODE_PORT):
+                if self.__DEBUG and split[3] not in self.__peerlist:
                     print('node', split[3], 'connected')
-                self.peerlist[split[3]] = (split[1], int(split[2]), time.time())
-                self.reversepeer[(split[1], int(split[2]))] = split[3]
+                self.__peerlist[split[3]] = (split[1], int(split[2]), time.time())
+                self.__reversepeer[(split[1], int(split[2]))] = split[3]
             return ''
         else:
-            if self.DEBUG:
+            if self.__DEBUG:
                 print("from %s %s" % (split[0], message))
             self.messages.put(message)
 
     def send_message(self, id, message, discovery=False):
         if id == 0:
-            ip = self.DISCOVERY_HOST
-            port = self.DISCOVERY_PORT
+            ip = self.__DISCOVERY_HOST
+            port = self.__DISCOVERY_PORT
         else:
             try:
-                ip = self.peerlist[str(id)][0]
-                port = self.peerlist[str(id)][1]
+                ip = self.__peerlist[str(id)][0]
+                port = self.__peerlist[str(id)][1]
             except KeyError as e:
-                if self.DEBUG:
+                if self.__DEBUG:
                     print('---- Invalid peer ->', e)
                 return
         try:
@@ -186,16 +187,16 @@ class Node():
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                    s.bind((self.NODE_HOST, self.NODE_PORT))
+                    s.bind((self.__NODE_HOST, self.__NODE_PORT))
                     prange = 1
                     if os.name == 'nt':
-                        prange += Node.getNodeCount()
-                    for iport in range(self.BASE_PORT, self.BASE_PORT + prange):
+                        prange += Node.__getNodeCount()
+                    for iport in range(self.__BASE_PORT, self.__BASE_PORT + prange):
                         s.sendto(message.encode('utf-8'), (ip, iport))
             else:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.connect((ip, port))
-                    message = self.ID + '-' + message
+                    message = self.__ID + '-' + message
                     s.sendall(message.encode('utf-8'))
         except Exception as e:
             print('---- Send to ->', id, 'failed:', e)
