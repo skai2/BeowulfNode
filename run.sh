@@ -9,5 +9,4 @@ fi
 for ((i=1; i<=$NUMBER; i++))
 do
     x-terminal-emulator -e "python3 pi_monte_carlo_distributed.py"&
-    sleep 1
 done
